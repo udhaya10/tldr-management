@@ -35,9 +35,7 @@
   {% if parent %}
   <li>
     <button class="dir-btn up-btn"
-            hx-get="{% url 'projects:browse' %}?path={{ parent }}"
-            hx-target="#browser-content"
-            hx-swap="innerHTML">
+            onclick="window._loadDir('{% url 'projects:browse' %}?path={{ parent }}')">
       ↑ ..
     </button>
   </li>
@@ -46,9 +44,7 @@
   {% for entry in entries %}
   <li>
     <button class="dir-btn"
-            hx-get="{% url 'projects:browse' %}?path={{ entry }}"
-            hx-target="#browser-content"
-            hx-swap="innerHTML">
+            onclick="window._loadDir('{% url 'projects:browse' %}?path={{ entry }}')">
       📁 {{ entry.name }}
     </button>
   </li>

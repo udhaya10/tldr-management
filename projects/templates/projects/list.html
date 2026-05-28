@@ -141,14 +141,11 @@
     try {
       const res = await fetch(url);
       _content.innerHTML = await res.text();
-      // Re-process so HTMX handles navigation buttons in the loaded partial
-      if (typeof htmx !== 'undefined') htmx.process(_content);
     } catch (e) {
       _content.innerHTML = '<p style="color:#dc2626;padding:.5rem 0">Failed to load directory.</p>';
     }
   }
 
-  // Expose loadDir so HTMX-enhanced buttons in browser.html can call it
   window._loadDir = loadDir;
 
   // Close on backdrop click
