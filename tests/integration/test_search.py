@@ -75,9 +75,12 @@ def semantic_response(fsnotifier_fixture) -> SemanticResponse:
 
 @pytest.fixture(scope="class")
 def similar_result() -> SimilarResult:
+    # --no-cache: don't write to ~/.cache/tldr/ — same isolation reason as
+    # semantic_response. Without this, all project Python files get cached on
+    # first run and any future test wanting a "fresh" embed would find them pre-cached.
     source = INTEGRATION_DIR / "test_l1.py"
     raw = _tldr(
-        "similar", "--format", "json", "--quiet",
+        "similar", "--format", "json", "--quiet", "--no-cache",
         "--path", str(PROJECT_ROOT),
         str(source),
     )
