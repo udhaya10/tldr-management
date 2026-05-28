@@ -41,4 +41,6 @@ addopts = "--strict-markers -q"
 dev = [
     "pytest>=8.0",
     "pytest-django>=4.9",
+    "rich>=15.0.0",
+    "sh>=2.2.2",
 ]
