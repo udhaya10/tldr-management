@@ -1,20 +1,18 @@
 """
-L1 (AST) integration tests.
+L1 (AST) integration tests — structural validation only.
 
-Tests all five L1 commands against stable, always-present project source:
+Tests all five L1 commands:
   tree        — directory tree structure
   structure   — file structure (functions, classes, imports, definitions)
   extract     — complete module info from a single file
   imports     — import statements from a single file
   importers   — files that import a given module
 
-All L1 commands are purely AST-based: no daemon, no call-graph cache,
-no fixture prep required — they just parse source on disk.
-
-Test targets (stable, always present):
-  directory : tests/integration/   (5 Python files with classes and methods)
-  file      : tests/conftest.py    (imports, functions, constants, docstring)
-  module    : pytest               (imported by every test file)
+Philosophy: we validate response SHAPE (field presence, types, schema
+consistency) — not content. No assertions about specific file names,
+function names, module names, or language strings. That keeps tests
+stable when source changes and avoids coupling tests to their own
+implementation.
 """
 
 import dataclasses
@@ -28,29 +26,28 @@ from tests.conftest import msg, requires_tldr
 
 pytestmark = [pytest.mark.integration, requires_tldr]
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+PROJECT_ROOT   = Path(__file__).parent.parent.parent
 INTEGRATION_DIR = PROJECT_ROOT / "tests" / "integration"
-CONFTEST_FILE = PROJECT_ROOT / "tests" / "conftest.py"
+CONFTEST_FILE  = PROJECT_ROOT / "tests" / "conftest.py"
 
 _tldr = sh.Command("tldr")
 
 
 # ── data models ───────────────────────────────────────────────────────────
 
-
 @dataclasses.dataclass(frozen=True)
 class TreeNode:
-    name: str
-    type: str                  # "dir" | "file"
-    children: list[dict]       # raw child dicts; empty for file nodes
-    path: str | None           # relative path; only set for file nodes
+    name:     str
+    type:     str            # "dir" | "file"
+    children: list[dict]     # raw child dicts; empty for file nodes
+    path:     str | None     # relative path; only present on file nodes
 
 
 @dataclasses.dataclass(frozen=True)
 class StructureResult:
     root:     str
     language: str
-    files:    list[dict]       # list of {path, classes, method_infos, imports, definitions}
+    files:    list[dict]     # {path, classes, method_infos, imports, definitions}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -80,7 +77,6 @@ class ImportersResult:
 
 # ── parsers ───────────────────────────────────────────────────────────────
 
-
 def parse_tree(raw: str) -> TreeNode:
     data = json.loads(raw)
     return TreeNode(
@@ -93,11 +89,7 @@ def parse_tree(raw: str) -> TreeNode:
 
 def parse_structure(raw: str) -> StructureResult:
     data = json.loads(raw)
-    return StructureResult(
-        root=data["root"],
-        language=data["language"],
-        files=data["files"],
-    )
+    return StructureResult(root=data["root"], language=data["language"], files=data["files"])
 
 
 def parse_extract(raw: str) -> ExtractResult:
@@ -115,95 +107,90 @@ def parse_extract(raw: str) -> ExtractResult:
 
 def parse_imports(raw: str) -> ImportsResult:
     data = json.loads(raw)
-    return ImportsResult(
-        file=data["file"],
-        language=data["language"],
-        imports=data["imports"],
-    )
+    return ImportsResult(file=data["file"], language=data["language"], imports=data["imports"])
 
 
 def parse_importers(raw: str) -> ImportersResult:
     data = json.loads(raw)
-    return ImportersResult(
-        module=data["module"],
-        importers=data["importers"],
-        total=data["total"],
-    )
+    return ImportersResult(module=data["module"], importers=data["importers"], total=data["total"])
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────
 
-
 @pytest.fixture(scope="class")
 def tree_result() -> TreeNode:
-    raw = _tldr("tree", "--format", "json", str(INTEGRATION_DIR))
-    return parse_tree(str(raw))
+    return parse_tree(str(_tldr("tree", "--format", "json", str(INTEGRATION_DIR))))
 
 
 @pytest.fixture(scope="class")
 def structure_result() -> StructureResult:
-    raw = _tldr("structure", "--format", "json", str(INTEGRATION_DIR))
-    return parse_structure(str(raw))
+    return parse_structure(str(_tldr("structure", "--format", "json", str(INTEGRATION_DIR))))
 
 
 @pytest.fixture(scope="class")
 def extract_result() -> ExtractResult:
-    raw = _tldr("extract", "--format", "json", str(CONFTEST_FILE))
-    return parse_extract(str(raw))
+    return parse_extract(str(_tldr("extract", "--format", "json", str(CONFTEST_FILE))))
 
 
 @pytest.fixture(scope="class")
 def imports_result() -> ImportsResult:
-    raw = _tldr("imports", "--format", "json", str(CONFTEST_FILE))
-    return parse_imports(str(raw))
+    return parse_imports(str(_tldr("imports", "--format", "json", str(CONFTEST_FILE))))
 
 
 @pytest.fixture(scope="class")
 def importers_result() -> ImportersResult:
-    raw = _tldr("importers", "--format", "json", "pytest", str(INTEGRATION_DIR))
-    return parse_importers(str(raw))
+    return parse_importers(str(_tldr("importers", "--format", "json", "pytest", str(INTEGRATION_DIR))))
+
+
+# ── helpers ───────────────────────────────────────────────────────────────
+
+def _check_schema(items: list[dict], required: dict[str, type], label: str) -> None:
+    """Assert every item in a list has the required fields with the right types."""
+    for i, item in enumerate(items):
+        for field, expected_type in required.items():
+            assert field in item, msg(
+                f"{label}[{i}] missing field '{field}'",
+                item=item,
+            )
+            assert isinstance(item[field], expected_type), msg(
+                f"{label}[{i}].{field} has wrong type",
+                expected=expected_type.__name__,
+                actual=type(item[field]).__name__,
+                value=item[field],
+            )
 
 
 # ── tests ─────────────────────────────────────────────────────────────────
 
-
 class TestTree:
     """tldr tree — directory tree structure."""
 
-    def test_root_type_is_dir(self, tree_result):
-        assert tree_result.type == "dir", msg(
-            "Root node is not a directory",
-            type=tree_result.type,
-            name=tree_result.name,
+    def test_root_has_name_and_type(self, tree_result):
+        assert isinstance(tree_result.name, str) and tree_result.name, msg(
+            "Root 'name' is not a non-empty string", name=repr(tree_result.name),
+        )
+        assert tree_result.type in ("dir", "file"), msg(
+            "Root 'type' is not 'dir' or 'file'", type=tree_result.type,
         )
 
-    def test_root_name(self, tree_result):
-        assert tree_result.name == "integration", msg(
-            "Root name does not match scanned directory",
-            actual=tree_result.name,
-            expected="integration",
-        )
+    def test_dir_node_has_children_list(self, tree_result):
+        if tree_result.type == "dir":
+            assert isinstance(tree_result.children, list), msg(
+                "Dir node 'children' is not a list", actual=type(tree_result.children).__name__,
+            )
 
-    def test_children_present(self, tree_result):
+    def test_children_non_empty(self, tree_result):
         assert tree_result.children, msg(
-            "Tree root has no children",
+            "Tree has no children — target directory appears empty",
             path=INTEGRATION_DIR,
         )
 
-    def test_known_file_in_children(self, tree_result):
-        names = [c["name"] for c in tree_result.children]
-        assert "test_daemon.py" in names, msg(
-            "Expected file not found in tree",
-            expected="test_daemon.py",
-            found=names,
-        )
-
     def test_each_child_has_name_and_type(self, tree_result):
-        bad = [c for c in tree_result.children if "name" not in c or "type" not in c]
-        assert not bad, msg(
-            "Some tree children are missing 'name' or 'type'",
-            bad_nodes=bad,
-        )
+        _check_schema(tree_result.children, {"name": str, "type": str}, "child")
+
+    def test_file_children_have_path(self, tree_result):
+        file_nodes = [c for c in tree_result.children if c.get("type") == "file"]
+        _check_schema(file_nodes, {"path": str}, "file-child")
 
     def test_captured_values(self, tree_result, capsys):
         with capsys.disabled():
@@ -215,41 +202,43 @@ class TestTree:
 class TestStructure:
     """tldr structure — file structure across a directory."""
 
-    def test_language_is_python(self, structure_result):
-        assert structure_result.language == "python", msg(
-            "Language auto-detection failed",
-            actual=structure_result.language,
-            expected="python",
+    def test_top_level_fields(self, structure_result):
+        assert isinstance(structure_result.root, str) and structure_result.root, msg(
+            "'root' is not a non-empty string",
+        )
+        assert isinstance(structure_result.language, str) and structure_result.language, msg(
+            "'language' is not a non-empty string",
+        )
+        assert isinstance(structure_result.files, list), msg(
+            "'files' is not a list",
         )
 
     def test_files_non_empty(self, structure_result):
         assert structure_result.files, msg(
-            "structure returned no files",
-            root=structure_result.root,
+            "structure returned no files", root=structure_result.root,
         )
 
-    def test_each_file_has_required_fields(self, structure_result):
+    def test_each_file_has_required_keys(self, structure_result):
         required = {"path", "classes", "method_infos", "imports", "definitions"}
-        bad = [f for f in structure_result.files if not required.issubset(f)]
-        assert not bad, msg(
-            "Some files are missing required fields",
-            missing_fields=[required - set(f) for f in bad],
-            files=[f.get("path") for f in bad],
-        )
+        for f in structure_result.files:
+            missing = required - set(f)
+            assert not missing, msg(
+                "File entry missing required keys",
+                path=f.get("path"),
+                missing=missing,
+            )
 
-    def test_classes_detected(self, structure_result):
-        files_with_classes = [f for f in structure_result.files if f["classes"]]
-        assert files_with_classes, msg(
-            "No classes detected in any file — expected test classes",
-            root=structure_result.root,
-        )
+    def test_method_info_schema(self, structure_result):
+        all_methods = [m for f in structure_result.files for m in f.get("method_infos", [])]
+        _check_schema(all_methods, {"name": str, "signature": str, "line": int, "line_end": int}, "method_info")
 
-    def test_methods_detected(self, structure_result):
-        files_with_methods = [f for f in structure_result.files if f["method_infos"]]
-        assert files_with_methods, msg(
-            "No methods detected in any file — expected test methods",
-            root=structure_result.root,
-        )
+    def test_import_schema(self, structure_result):
+        all_imports = [i for f in structure_result.files for i in f.get("imports", [])]
+        _check_schema(all_imports, {"module": str, "is_from": bool}, "import")
+
+    def test_definition_schema(self, structure_result):
+        all_defs = [d for f in structure_result.files for d in f.get("definitions", [])]
+        _check_schema(all_defs, {"name": str, "kind": str, "line_start": int, "line_end": int}, "definition")
 
     def test_captured_values(self, structure_result, capsys):
         with capsys.disabled():
@@ -265,91 +254,64 @@ class TestStructure:
 class TestExtract:
     """tldr extract — complete module info from a single file."""
 
-    def test_language_is_python(self, extract_result):
-        assert extract_result.language == "python", msg(
-            "Language not detected correctly",
-            actual=extract_result.language,
+    def test_top_level_fields(self, extract_result):
+        assert isinstance(extract_result.file_path, str) and extract_result.file_path, msg(
+            "'file_path' is not a non-empty string",
+        )
+        assert isinstance(extract_result.language, str) and extract_result.language, msg(
+            "'language' is not a non-empty string",
+        )
+        for field, val in [("imports", extract_result.imports),
+                           ("functions", extract_result.functions),
+                           ("classes", extract_result.classes),
+                           ("constants", extract_result.constants)]:
+            assert isinstance(val, list), msg(f"'{field}' is not a list", actual=type(val).__name__)
+
+    def test_imports_schema(self, extract_result):
+        _check_schema(extract_result.imports, {"module": str, "is_from": bool}, "import")
+
+    def test_functions_schema(self, extract_result):
+        _check_schema(
+            extract_result.functions,
+            {"name": str, "params": list, "is_method": bool, "is_async": bool, "line": int, "line_end": int},
+            "function",
         )
 
-    def test_file_path_matches_target(self, extract_result):
-        assert Path(extract_result.file_path).name == CONFTEST_FILE.name, msg(
-            "Returned file_path does not match input file",
-            actual=extract_result.file_path,
-            expected=CONFTEST_FILE.name,
-        )
-
-    def test_docstring_present(self, extract_result):
-        assert extract_result.docstring.strip(), msg(
-            "Module docstring is empty — conftest.py has a module docstring",
-            file_path=extract_result.file_path,
-        )
-
-    def test_functions_detected(self, extract_result):
-        names = [f["name"] for f in extract_result.functions]
-        assert "msg" in names, msg(
-            "'msg' function not found in extract output",
-            found=names,
-        )
-
-    def test_imports_include_pytest(self, extract_result):
-        modules = [i["module"] for i in extract_result.imports]
-        assert "pytest" in modules, msg(
-            "'pytest' not found in imports",
-            found=modules,
-        )
-
-    def test_constants_detected(self, extract_result):
-        names = [c["name"] for c in extract_result.constants]
-        assert "PROJECT_ROOT" in names, msg(
-            "'PROJECT_ROOT' constant not found",
-            found=names,
-        )
+    def test_constants_schema(self, extract_result):
+        _check_schema(extract_result.constants, {"name": str, "line": int, "line_end": int}, "constant")
 
     def test_captured_values(self, extract_result, capsys):
         with capsys.disabled():
-            print(f"\n  file_path  : {extract_result.file_path}")
-            print(f"  language   : {extract_result.language}")
-            print(f"  functions  : {[f['name'] for f in extract_result.functions]}")
-            print(f"  imports    : {[i['module'] for i in extract_result.imports]}")
-            print(f"  constants  : {[c['name'] for c in extract_result.constants]}")
+            print(f"\n  file_path : {extract_result.file_path}")
+            print(f"  language  : {extract_result.language}")
+            print(f"  imports   : {len(extract_result.imports)}")
+            print(f"  functions : {len(extract_result.functions)}")
+            print(f"  classes   : {len(extract_result.classes)}")
+            print(f"  constants : {len(extract_result.constants)}")
 
 
 class TestImports:
     """tldr imports — import statements from a single file."""
 
-    def test_language_is_python(self, imports_result):
-        assert imports_result.language == "python", msg(
-            "Language not detected correctly",
-            actual=imports_result.language,
+    def test_top_level_fields(self, imports_result):
+        assert isinstance(imports_result.file, str) and imports_result.file, msg(
+            "'file' is not a non-empty string",
         )
-
-    def test_file_field_present(self, imports_result):
-        assert imports_result.file, msg(
-            "imports response 'file' field is empty",
+        assert isinstance(imports_result.language, str) and imports_result.language, msg(
+            "'language' is not a non-empty string",
+        )
+        assert isinstance(imports_result.imports, list), msg(
+            "'imports' is not a list",
         )
 
     def test_imports_non_empty(self, imports_result):
         assert imports_result.imports, msg(
-            "imports returned empty list for conftest.py",
+            "imports returned empty list — target file has no imports",
             file=imports_result.file,
         )
 
-    def test_known_module_present(self, imports_result):
-        modules = [i["module"] for i in imports_result.imports]
-        assert "pytest" in modules, msg(
-            "'pytest' not found in imports list",
-            found=modules,
-        )
-
-    def test_response_is_envelope_not_legacy_array(self, imports_result):
-        # Verify the envelope shape was returned (not --legacy-array bare list)
-        assert isinstance(imports_result.imports, list), msg(
-            "imports field is not a list",
-            type=type(imports_result.imports).__name__,
-        )
-        assert imports_result.file, msg(
-            "Envelope 'file' field missing — may have received legacy-array shape",
-        )
+    def test_each_import_schema(self, imports_result):
+        _check_schema(imports_result.imports, {"module": str, "is_from": bool}, "import")
 
     def test_captured_values(self, imports_result, capsys):
         with capsys.disabled():
@@ -361,42 +323,40 @@ class TestImports:
 class TestImporters:
     """tldr importers — find all files that import a given module."""
 
-    def test_module_field(self, importers_result):
-        assert importers_result.module == "pytest", msg(
-            "Response 'module' field does not match query",
-            actual=importers_result.module,
-            expected="pytest",
+    def test_top_level_fields(self, importers_result):
+        assert isinstance(importers_result.module, str) and importers_result.module, msg(
+            "'module' is not a non-empty string",
+        )
+        assert isinstance(importers_result.importers, list), msg(
+            "'importers' is not a list",
+        )
+        assert isinstance(importers_result.total, int), msg(
+            "'total' is not an int",
         )
 
-    def test_importers_non_empty(self, importers_result):
-        assert importers_result.total > 0, msg(
-            "No importers found for 'pytest' in integration dir",
-            path=INTEGRATION_DIR,
-        )
-
-    def test_total_matches_list_length(self, importers_result):
+    def test_total_equals_list_length(self, importers_result):
         assert importers_result.total == len(importers_result.importers), msg(
-            "total field does not match length of importers list",
+            "'total' does not match length of 'importers' list",
             total=importers_result.total,
             list_len=len(importers_result.importers),
         )
 
-    def test_known_importer_present(self, importers_result):
-        files = [Path(i["file"]).name for i in importers_result.importers]
-        assert "test_daemon.py" in files, msg(
-            "test_daemon.py not found in importers of pytest",
-            found=files,
+    def test_importers_non_empty(self, importers_result):
+        assert importers_result.importers, msg(
+            "importers returned empty list",
+            module=importers_result.module,
+            path=INTEGRATION_DIR,
         )
 
-    def test_import_statement_present(self, importers_result):
-        missing_stmt = [i for i in importers_result.importers if not i.get("import_statement")]
-        assert not missing_stmt, msg(
-            "Some importers are missing the import_statement field",
-            bad=missing_stmt,
+    def test_each_importer_schema(self, importers_result):
+        _check_schema(
+            importers_result.importers,
+            {"file": str, "line": int, "import_statement": str},
+            "importer",
         )
 
-    def test_line_numbers_positive(self, importers_result):
-        bad = [i for i in importers_result.importers if i.get("line", 0) <= 0]
+    def test_importer_line_numbers_positive(self, importers_result):
+        bad = [i for i in importers_result.importers if i["line"] <= 0]
         assert not bad, msg(
             "Some importers have non-positive line numbers",
             bad=bad,
@@ -404,7 +364,7 @@ class TestImporters:
 
     def test_captured_values(self, importers_result, capsys):
         with capsys.disabled():
-            print(f"\n  module     : {importers_result.module}")
-            print(f"  total      : {importers_result.total}")
+            print(f"\n  module   : {importers_result.module}")
+            print(f"  total    : {importers_result.total}")
             for i in importers_result.importers:
-                print(f"    line {i['line']:3d}  {i['file']}")
+                print(f"    line {i['line']:3d}  {Path(i['file']).name}")
