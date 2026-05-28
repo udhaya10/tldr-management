@@ -152,6 +152,16 @@
   _dialog.addEventListener('click', function(e) {
     if (e.target === this) this.close();
   });
+
+  // Arc/Safari bfcache restores the page with the dialog already open but
+  // without the backdrop, leaving it in a broken non-closeable state.
+  // Reset it immediately on any page restoration.
+  window.addEventListener('pageshow', function() {
+    if (_dialog.open) {
+      _dialog.close();
+      _content.innerHTML = '<p class="loading">Loading…</p>';
+    }
+  });
 </script>
 
 </body>
