@@ -1,5 +1,7 @@
+import subprocess
 from pathlib import Path
 
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -45,3 +47,17 @@ def add_project(request):
 def remove_project(request, pk):
     get_object_or_404(ProjectPath, pk=pk).delete()
     return redirect("projects:list")
+
+
+def check_project(request, pk):
+    project = get_object_or_404(ProjectPath, pk=pk)
+    p = Path(project.path)
+
+    git_ok = subprocess.run(
+        ["git", "-C", str(p), "rev-parse", "--git-dir"],
+        capture_output=True,
+    ).returncode == 0
+
+    tldr_ok = (p / ".tldr").is_dir() or (p / ".tldrignore").is_file()
+
+    return JsonResponse({"git": git_ok, "tldr": tldr_ok})

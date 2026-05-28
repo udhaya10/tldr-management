@@ -52,6 +52,13 @@
     .card-icon { font-size: 1.6rem; line-height: 1; margin-bottom: 0.25rem; }
     .card-name { font-weight: 600; font-size: 0.95rem; word-break: break-word; }
     .card-path { font-family: monospace; font-size: 0.72rem; color: #6b7280; word-break: break-all; }
+    .card-checks { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; min-height: 1.5rem; }
+    .badge { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.72rem; font-weight: 500; padding: 0.2rem 0.55rem; border-radius: 999px; }
+    .badge-pass { background: #dcfce7; color: #15803d; }
+    .badge-fail { background: #fee2e2; color: #b91c1c; }
+    .btn-check { margin-top: 0.75rem; align-self: flex-start; background: #f3f4f6; border: 1px solid #d1d5db; color: #374151; font-size: 0.78rem; padding: 0.3rem 0.75rem; border-radius: 5px; cursor: pointer; font-family: inherit; }
+    .btn-check:hover { background: #e5e7eb; }
+    .btn-check:disabled { opacity: 0.5; cursor: default; }
 
     /* buttons */
     .btn {
@@ -146,6 +153,8 @@
     <div class="card-icon">📁</div>
     <div class="card-name">{{ p.name }}</div>
     <div class="card-path">{{ p.path }}</div>
+    <div class="card-checks" id="checks-{{ p.pk }}"></div>
+    <button class="btn-check" onclick="runCheck({{ p.pk }}, this)">Run checks</button>
   </div>
   {% endfor %}
 </div>
@@ -182,6 +191,31 @@
   }
 
   window._loadDir = loadDir;
+
+  async function runCheck(pk, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
+    const area = document.getElementById('checks-' + pk);
+    area.innerHTML = '';
+    try {
+      const res = await fetch(`/projects/${pk}/check/`);
+      const data = await res.json();
+      const checks = [
+        { key: 'git',  label: 'Git repo' },
+        { key: 'tldr', label: 'TLDR repo' },
+      ];
+      checks.forEach(({ key, label }) => {
+        const span = document.createElement('span');
+        span.className = 'badge ' + (data[key] ? 'badge-pass' : 'badge-fail');
+        span.textContent = (data[key] ? '✓ ' : '✗ ') + label;
+        area.appendChild(span);
+      });
+    } catch {
+      area.innerHTML = '<span class="badge badge-fail">✗ Check failed</span>';
+    }
+    btn.textContent = 'Re-check';
+    btn.disabled = false;
+  }
 
   // Close on backdrop click
   _dialog.addEventListener('click', function(e) {
