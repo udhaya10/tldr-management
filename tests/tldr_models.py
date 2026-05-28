@@ -178,3 +178,99 @@ class ImportersResult(BaseModel):
                 f"total={self.total} does not match len(importers)={len(self.importers)}"
             )
         return self
+
+
+# ── search ────────────────────────────────────────────────────────────────
+
+class SearchResult(BaseModel):
+    model_config = _cfg
+
+    name:          str
+    kind:          str
+    file:          str
+    line_range:    Annotated[list[int], Field(min_length=2, max_length=2)]
+    signature:     str
+    callers:       list[str] = []
+    callees:       list[str] = []
+    score:         float
+    matched_terms: list[str] = []
+    preview:       str = ""
+
+
+class SearchResponse(BaseModel):
+    model_config = _cfg
+
+    query:   str
+    results: list[SearchResult]
+
+
+# ── context ───────────────────────────────────────────────────────────────
+
+class ContextFunction(BaseModel):
+    model_config = _cfg
+
+    name:       str
+    file:       str
+    line:       LineNumber
+    signature:  str
+    calls:      list[str] = []
+    blocks:     int
+    cyclomatic: int
+
+
+class ContextResult(BaseModel):
+    model_config = _cfg
+
+    entry_point: str
+    depth:       int
+    functions:   list[ContextFunction]
+
+
+# ── semantic ──────────────────────────────────────────────────────────────
+
+class SemanticResult(BaseModel):
+    model_config = _cfg
+
+    file_path:     str
+    function_name: str | None = None
+    class_name:    str | None = None
+    score:         float
+    line_start:    LineNumber
+    line_end:      LineNumber
+    snippet:       str
+
+
+class SemanticResponse(BaseModel):
+    model_config = _cfg
+
+    query:         str
+    results:       list[SemanticResult]
+    total_results: int
+
+    @model_validator(mode="after")
+    def total_matches_list(self) -> "SemanticResponse":
+        if self.total_results != len(self.results):
+            raise ValueError(
+                f"total_results={self.total_results} does not match len(results)={len(self.results)}"
+            )
+        return self
+
+
+# ── similar ───────────────────────────────────────────────────────────────
+
+class SimilarFile(BaseModel):
+    model_config = _cfg
+
+    file_path:      str
+    total_score:    float
+    matched_chunks: int
+    avg_score:      float
+
+
+class SimilarResult(BaseModel):
+    model_config = _cfg
+
+    source_file:   str
+    source_chunks: int
+    model:         str
+    similar_files: list[SimilarFile]

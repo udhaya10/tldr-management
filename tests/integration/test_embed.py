@@ -64,12 +64,23 @@ def embed_fresh(fsnotifier_fixture):
 
 
 @pytest.fixture(scope="class")
-def embed_cached_pair(fsnotifier_fixture):
+def embed_cached_pair(tmp_path_factory):
     """
     Embed the same file twice without --no-cache.
     Returns (first_run, second_run) — second run must hit the cache.
+
+    Uses a uniquely-generated Python file (UUID in content) so the user-level
+    cache at ~/.cache/tldr/ can never have seen it before, regardless of how
+    many times the test suite has run previously.
     """
-    target = fsnotifier_fixture / "linux" / "util.c"
+    import uuid
+    target = tmp_path_factory.mktemp("embed_cache") / "target.py"
+    target.write_text(
+        f'"""Unique embed-cache test fixture — {uuid.uuid4().hex}."""\n\n'
+        "def compute(x: int) -> int:\n"
+        '    """Return double the input."""\n'
+        "    return x * 2\n"
+    )
     first  = parse_embed_result(str(_tldr("embed", "--format", "json", str(target))))
     second = parse_embed_result(str(_tldr("embed", "--format", "json", str(target))))
     return first, second
