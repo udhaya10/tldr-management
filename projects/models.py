@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from django.db import models
 
 
@@ -10,3 +12,7 @@ class ProjectPath(models.Model):
 
     def __str__(self):
         return self.path
+
+    @property
+    def name(self):
+        return Path(self.path).name
