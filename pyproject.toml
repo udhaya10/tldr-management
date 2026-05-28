@@ -39,6 +39,7 @@ addopts = "--strict-markers -q"
 
 [dependency-groups]
 dev = [
+    "codetiming>=1.4.0",
     "pytest>=8.0",
     "pytest-django>=4.9",
     "rich>=15.0.0",
