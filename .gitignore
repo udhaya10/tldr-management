@@ -1,6 +1,32 @@
 
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Test fixtures cloned by scripts/prepare-test-case.sh
+#
+# ⚠️  NEVER ADD THE CONTENTS OF tests/fixtures/ TO GIT.
+#
+#   - These directories hold full clones of third-party repositories
+#     (e.g., udhaya10/tldr-code) used as real-world test inputs.
+#   - They are rebuildable at any time with `./scripts/prepare-test-case.sh`.
+#   - Committing them would bloat history, mix in upstream licenses, and
+#     create merge nightmares.
+#   - If you find yourself wanting to commit one, STOP and ask why your test
+#     can't rebuild the fixture from the script instead.
+#
+# Everything inside tests/fixtures/ is gitignored EXCEPT a README.md that
+# documents the rule for future contributors.
+# ─────────────────────────────────────────────────────────────────────────────
+tests/fixtures/*
+!tests/fixtures/README.md

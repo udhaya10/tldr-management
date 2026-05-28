@@ -1,0 +1,44 @@
+[project]
+name = "tldr-management"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "django>=6.0,<7.0",
+    "djangorestframework>=3.17,<4.0",
+    "cashews>=7.5,<8.0",
+    "filelock>=3.29,<4.0",
+    "tenacity>=9.1,<10.0",
+    "python-dotenv>=1.2,<2.0",
+]
+
+[project.optional-dependencies]
+telemetry = [
+    "opentelemetry-distro",
+    "opentelemetry-exporter-otlp",
+    "opentelemetry-instrumentation-django",
+    "opentelemetry-instrumentation-logging",
+    "python-json-logger>=3.0",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.9",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tldr_management.settings"
+pythonpath = ["."]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: fast, no external dependencies, fully mockable",
+    "integration: requires tldr binary or daemon; skipped when environment is incomplete",
+    "e2e: full service lifecycle; requires all environment dependencies",
+]
+addopts = "--strict-markers -q"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.9",
+]
