@@ -48,38 +48,49 @@
 
     /* dialog / modal */
     dialog {
+      /* explicit centering — display:flex overrides browser auto-center */
+      position: fixed;
+      inset: 0;
+      margin: auto;
       border: none;
       border-radius: 10px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
       padding: 0;
-      width: 560px;
+      width: 580px;
       max-width: 95vw;
-      max-height: 80vh;
-      overflow: hidden;
+      height: 520px;       /* fixed height so flex:1 on content has room */
+      max-height: 85vh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
-    dialog::backdrop { background: rgba(0,0,0,0.4); }
+    dialog::backdrop { background: rgba(0,0,0,0.45); }
 
     .dialog-header {
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 1rem 1.25rem 0.75rem;
+      padding: 1.1rem 1.25rem 0.9rem;
       border-bottom: 1px solid #e5e7eb;
     }
-    .dialog-header h2 { font-size: 1rem; }
+    .dialog-header h2 { font-size: 1rem; font-weight: 600; }
     .btn-close {
+      appearance: none;
+      -webkit-appearance: none;
       background: none;
       border: none;
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       cursor: pointer;
-      color: #6b7280;
+      color: #9ca3af;
       line-height: 1;
+      padding: 0.25rem 0.4rem;
+      border-radius: 4px;
     }
-    .btn-close:hover { color: #111; }
+    .btn-close:hover { background: #f3f4f6; color: #374151; }
 
-    #browser-content { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; }
+    #browser-content { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; min-height: 0; }
+    .loading { color: #9ca3af; font-size: 0.85rem; padding: 0.5rem 0; }
   </style>
 </head>
 <body>
@@ -103,33 +114,29 @@
 {% endif %}
 
 <form style="display:none">{% csrf_token %}</form>
-<button class="btn btn-primary" onclick="openBrowser()">+ Add Project</button>
+<button class="btn btn-primary"
+        hx-get="{% url 'projects:browse' %}"
+        hx-target="#browser-content"
+        hx-swap="innerHTML"
+        onclick="document.getElementById('browser-dialog').showModal()">
+  + Add Project
+</button>
 
 <dialog id="browser-dialog">
   <div class="dialog-header">
     <h2>Select a folder</h2>
-    <button class="btn-close" onclick="closeBrowser()" aria-label="Close">✕</button>
+    <button type="button" class="btn-close" aria-label="Close"
+            onclick="document.getElementById('browser-dialog').close()">✕</button>
   </div>
   <div id="browser-content">
-    <!-- HTMX loads the directory listing here when the dialog opens -->
+    <p class="loading">Loading…</p>
   </div>
 </dialog>
 
 <script>
-  const dialog = document.getElementById('browser-dialog');
-
-  function openBrowser() {
-    htmx.ajax('GET', '{% url "projects:browse" %}', {target: '#browser-content', swap: 'innerHTML'});
-    dialog.showModal();
-  }
-
-  function closeBrowser() {
-    dialog.close();
-  }
-
   // Close on backdrop click
-  dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) closeBrowser();
+  document.getElementById('browser-dialog').addEventListener('click', function(e) {
+    if (e.target === this) this.close();
   });
 </script>
 
