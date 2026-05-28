@@ -34,6 +34,20 @@ FILENAME_RE = re.compile(r"^tldr-(?P<hash>[0-9a-f]{8})\.(?P<ext>pid|sock)$")
 _tldr = sh.Command("tldr")
 
 
+@dataclasses.dataclass(frozen=True)
+class DaemonFilename:
+    hash: str
+    ext: str
+
+
+def parse_daemon_filename(name: str) -> DaemonFilename | None:
+    """Parse a daemon filename; returns DaemonFilename or None if it doesn't match."""
+    match = FILENAME_RE.match(name)
+    if not match:
+        return None
+    return DaemonFilename(hash=match.group("hash"), ext=match.group("ext"))
+
+
 # ── data model ────────────────────────────────────────────────────────────
 
 @dataclasses.dataclass
@@ -67,17 +81,17 @@ class DaemonInfo:
 @pytest.fixture(scope="class")
 def daemon_info() -> Generator[DaemonInfo, None, None]:
     """Start the daemon, yield DaemonInfo, stop cleanly on teardown."""
-    raw    = _tldr("daemon", "start", "--format", "json")
-    data   = json.loads(str(raw))
-    socket = Path(data["socket"])
-    match  = FILENAME_RE.match(socket.name)
+    raw      = _tldr("daemon", "start", "--format", "json")
+    data     = json.loads(str(raw))
+    socket   = Path(data["socket"])
+    parsed   = parse_daemon_filename(socket.name)
 
     info = DaemonInfo(
         status=data["status"],
         pid=data["pid"],
         socket_path=socket,
         message=data["message"],
-        session_hash=match.group("hash") if match else "",
+        session_hash=parsed.hash if parsed else "",
     )
 
     yield info
@@ -125,7 +139,7 @@ class TestDaemonStartup:
         )
 
     def test_filename_matches_pattern(self, daemon_info):
-        assert FILENAME_RE.match(daemon_info.sock_file.name), msg(
+        assert parse_daemon_filename(daemon_info.sock_file.name) is not None, msg(
             "Socket filename does not match expected pattern",
             filename=daemon_info.sock_file.name,
             pattern=FILENAME_RE.pattern,
