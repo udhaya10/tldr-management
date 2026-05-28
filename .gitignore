@@ -2,6 +2,9 @@
 # IDE
 .idea/
 
+# Playwright MCP artifacts
+.playwright-mcp/
+
 # tldr cache artifacts
 .tldr/
 .tldrignore
