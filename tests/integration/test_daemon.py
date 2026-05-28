@@ -249,3 +249,34 @@ class TestDaemonStatus:
             print(f"  project      : {status.project}")
             print(f"  salsa hits   : {status.salsa_stats.hits}")
             print(f"  salsa misses : {status.salsa_stats.misses}")
+
+
+class TestDaemonStop:
+    """
+    Validates daemon stop: response is ok and all $TMPDIR files vanish.
+
+    Methods are intentionally stateful — test_01 stops the daemon so that
+    test_02 and test_03 can assert the files are gone.
+    The daemon_info fixture teardown silently ignores a second stop attempt.
+    """
+
+    def test_01_stop_response_is_ok(self, daemon_info):
+        raw  = _tldr("daemon", "stop", "--format", "json")
+        data = json.loads(str(raw))
+        assert data["status"] == "ok", msg(
+            "Daemon stop did not return ok",
+            status=data["status"],
+            message=data.get("message", ""),
+        )
+
+    def test_02_pid_file_vanishes(self, daemon_info):
+        assert not daemon_info.pid_file.exists(), msg(
+            "PID file still present after daemon stop",
+            path=daemon_info.pid_file,
+        )
+
+    def test_03_sock_file_vanishes(self, daemon_info):
+        assert not daemon_info.sock_file.exists(), msg(
+            "Socket file still present after daemon stop",
+            path=daemon_info.sock_file,
+        )
