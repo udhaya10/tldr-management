@@ -175,6 +175,16 @@ class TestWarm:
             timings=warm_session.timings,
         )
 
+    def test_after_warm_faster_than_cold(self, warm_session):
+        before = warm_session.timings["before_warm_ms"]
+        after  = warm_session.timings["after_warm_ms"]
+        assert after < before, msg(
+            "Query after warm is not faster than cold query",
+            before_ms=f"{before:.1f}",
+            after_ms=f"{after:.1f}",
+            delta=f"{before - after:+.1f}ms",
+        )
+
     def test_captured_values(self, warm_session, capsys):
         before = warm_session.timings["before_warm_ms"]
         after  = warm_session.timings["after_warm_ms"]
