@@ -114,13 +114,7 @@
 {% endif %}
 
 <form style="display:none">{% csrf_token %}</form>
-<button class="btn btn-primary"
-        hx-get="{% url 'projects:browse' %}"
-        hx-target="#browser-content"
-        hx-swap="innerHTML"
-        onclick="document.getElementById('browser-dialog').showModal()">
-  + Add Project
-</button>
+<button class="btn btn-primary" onclick="openBrowser()">+ Add Project</button>
 
 <dialog id="browser-dialog">
   <div class="dialog-header">
@@ -134,8 +128,31 @@
 </dialog>
 
 <script>
+  const _dialog = document.getElementById('browser-dialog');
+  const _content = document.getElementById('browser-content');
+  const _browseUrl = "{% url 'projects:browse' %}";
+
+  async function openBrowser() {
+    _dialog.showModal();
+    await loadDir(_browseUrl);
+  }
+
+  async function loadDir(url) {
+    try {
+      const res = await fetch(url);
+      _content.innerHTML = await res.text();
+      // Re-process so HTMX handles navigation buttons in the loaded partial
+      if (typeof htmx !== 'undefined') htmx.process(_content);
+    } catch (e) {
+      _content.innerHTML = '<p style="color:#dc2626;padding:.5rem 0">Failed to load directory.</p>';
+    }
+  }
+
+  // Expose loadDir so HTMX-enhanced buttons in browser.html can call it
+  window._loadDir = loadDir;
+
   // Close on backdrop click
-  document.getElementById('browser-dialog').addEventListener('click', function(e) {
+  _dialog.addEventListener('click', function(e) {
     if (e.target === this) this.close();
   });
 </script>
