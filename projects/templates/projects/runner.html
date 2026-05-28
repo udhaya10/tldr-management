@@ -131,8 +131,22 @@
   <div id="output"><span class="cursor"></span></div>
 </div>
 
+<form id="csrf-form" style="display:none">{% csrf_token %}</form>
+
 <script>
   let activeSource = null;
+
+  function csrfToken() {
+    return document.querySelector('#csrf-form [name=csrfmiddlewaretoken]').value;
+  }
+
+  async function saveStatus(projectPk, script, ok, checks) {
+    await fetch(`/projects/${projectPk}/status/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+      body: JSON.stringify({ script, ok, checks }),
+    });
+  }
 
   function runScript() {
     const script  = document.getElementById('script-select').value;
@@ -161,14 +175,14 @@
         activeSource = null;
         btn.disabled = false;
         const code = data.__exit__;
+        const ok = code === 0;
         const line = document.createElement('span');
-        line.className = code === 0 ? 'line-exit-ok' : 'line-exit-err';
-        line.textContent = code === 0
-          ? `\n✓ Exited with code 0`
-          : `\n✗ Exited with code ${code}`;
+        line.className = ok ? 'line-exit-ok' : 'line-exit-err';
+        line.textContent = ok ? `\n✓ Exited with code 0` : `\n✗ Exited with code ${code}`;
         output.appendChild(line);
-        label.textContent = code === 0 ? 'done ✓' : `failed (exit ${code})`;
+        label.textContent = ok ? 'done ✓' : `failed (exit ${code})`;
         output.scrollTop = output.scrollHeight;
+        saveStatus(project, script, ok, data.checks || {});
         return;
       }
 

@@ -6,6 +6,7 @@ from django.db import models
 class ProjectPath(models.Model):
     path = models.CharField(max_length=4096, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    last_run = models.JSONField(null=True, blank=True)
 
     class Meta:
         ordering = ["path"]

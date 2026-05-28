@@ -86,6 +86,7 @@ def run_script(request):
     project = get_object_or_404(ProjectPath, pk=project_pk)
 
     def stream():
+        checks = {}
         process = subprocess.Popen(
             ["bash", str(script_path), project.path],
             stdout=subprocess.PIPE,
@@ -93,11 +94,32 @@ def run_script(request):
             text=True,
         )
         for line in process.stdout:
-            yield f"data: {json.dumps(line)}\n\n"
+            if line.startswith("##CHECK "):
+                rest = line.strip()[len("##CHECK "):]
+                parts = rest.rsplit(None, 1)
+                if len(parts) == 2:
+                    checks[parts[0]] = (parts[1].upper() == "PASS")
+            else:
+                yield f"data: {json.dumps(line)}\n\n"
         process.wait()
-        yield f"data: {json.dumps({'__exit__': process.returncode})}\n\n"
+        yield f"data: {json.dumps({'__exit__': process.returncode, 'checks': checks})}\n\n"
 
     response = StreamingHttpResponse(stream(), content_type="text/event-stream")
     response["Cache-Control"] = "no-cache"
     response["X-Accel-Buffering"] = "no"
     return response
+
+
+@require_POST
+def update_status(request, pk):
+    import datetime as dt
+    project = get_object_or_404(ProjectPath, pk=pk)
+    body = json.loads(request.body)
+    project.last_run = {
+        "script": body.get("script", ""),
+        "ok": body.get("ok", False),
+        "checks": body.get("checks", {}),
+        "run_at": dt.datetime.now(tz=dt.timezone.utc).isoformat(),
+    }
+    project.save(update_fields=["last_run"])
+    return JsonResponse({"saved": True})

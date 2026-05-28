@@ -12,4 +12,5 @@ urlpatterns = [
     path("<int:pk>/check/", views.check_project, name="check"),
     path("runner/", views.runner_page, name="runner"),
     path("run/", views.run_script, name="run"),
+    path("<int:pk>/status/", views.update_status, name="status"),
 ]

@@ -56,6 +56,8 @@
     .badge { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.72rem; font-weight: 500; padding: 0.2rem 0.55rem; border-radius: 999px; }
     .badge-pass { background: #dcfce7; color: #15803d; }
     .badge-fail { background: #fee2e2; color: #b91c1c; }
+    .badge-none { background: #f3f4f6; color: #9ca3af; }
+    .card-script { font-size: 0.68rem; color: #9ca3af; margin-top: 0.25rem; }
     .btn-check { margin-top: 0.75rem; align-self: flex-start; background: #f3f4f6; border: 1px solid #d1d5db; color: #374151; font-size: 0.78rem; padding: 0.3rem 0.75rem; border-radius: 5px; cursor: pointer; font-family: inherit; }
     .btn-check:hover { background: #e5e7eb; }
     .btn-check:disabled { opacity: 0.5; cursor: default; }
@@ -156,7 +158,24 @@
     <div class="card-icon">📁</div>
     <div class="card-name">{{ p.name }}</div>
     <div class="card-path">{{ p.path }}</div>
-    <div class="card-checks" id="checks-{{ p.pk }}"></div>
+    <div class="card-checks" id="checks-{{ p.pk }}">
+      {% if p.last_run %}
+        {% if p.last_run.checks %}
+          {% for label, passed in p.last_run.checks.items %}
+            <span class="badge {% if passed %}badge-pass{% else %}badge-fail{% endif %}">
+              {% if passed %}✓{% else %}✗{% endif %} {{ label }}
+            </span>
+          {% endfor %}
+        {% else %}
+          <span class="badge {% if p.last_run.ok %}badge-pass{% else %}badge-fail{% endif %}">
+            {% if p.last_run.ok %}✓{% else %}✗{% endif %} {{ p.last_run.script }}
+          </span>
+        {% endif %}
+        <div class="card-script">via {{ p.last_run.script }}</div>
+      {% else %}
+        <span class="badge badge-none">● not checked</span>
+      {% endif %}
+    </div>
     <button class="btn-check" onclick="runCheck({{ p.pk }}, this)">Run checks</button>
   </div>
   {% endfor %}
