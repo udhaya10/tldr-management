@@ -12,6 +12,18 @@ import shutil
 from pathlib import Path
 
 import pytest
+from rich.console import Console
+from rich.panel import Panel
+
+# ── shared helpers ────────────────────────────────────────────────────────
+
+def msg(title: str, **fields) -> str:
+    """Render a Rich panel to plain text for use in assertion messages."""
+    console = Console(record=True, width=72, highlight=False)
+    body = "\n".join(f"  [bold]{k}:[/bold] {v}" for k, v in fields.items())
+    console.print(Panel(body, title=f"[red]{title}[/red]", expand=False))
+    return "\n" + console.export_text()
+
 
 # ── project paths ──────────────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).parent.parent
