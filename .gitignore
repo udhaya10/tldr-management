@@ -1,4 +1,11 @@
 
+# IDE
+.idea/
+
+# tldr cache artifacts
+.tldr/
+.tldrignore
+
 # Python
 .venv/
 __pycache__/
