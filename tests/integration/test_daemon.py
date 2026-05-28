@@ -198,7 +198,7 @@ class TestDaemonStartup:
             from_response=daemon_info.pid,
         )
 
-    def test_captured_values(self, daemon_info, capsys):
+    def _dump_captured_values(self, daemon_info, capsys):
         """Print all captured values — visible with pytest -s."""
         with capsys.disabled():
             print(f"\n  status        : {daemon_info.status}")

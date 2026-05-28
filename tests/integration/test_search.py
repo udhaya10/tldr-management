@@ -105,7 +105,7 @@ class TestSearch:
             bad=[(r.name, r.score) for r in bad],
         )
 
-    def test_captured_values(self, search_response, capsys):
+    def _dump_captured_values(self, search_response, capsys):
         with capsys.disabled():
             print(f"\n  query   : {search_response.query}")
             print(f"  results : {len(search_response.results)}")
@@ -129,7 +129,7 @@ class TestContext:
             depth=context_result.depth,
         )
 
-    def test_captured_values(self, context_result, capsys):
+    def _dump_captured_values(self, context_result, capsys):
         with capsys.disabled():
             print(f"\n  entry_point : {context_result.entry_point}")
             print(f"  depth       : {context_result.depth}")
@@ -156,7 +156,7 @@ class TestSemantic:
             bad=[(r.file_path, r.score) for r in bad],
         )
 
-    def test_captured_values(self, semantic_response, capsys):
+    def _dump_captured_values(self, semantic_response, capsys):
         with capsys.disabled():
             print(f"\n  query         : {semantic_response.query}")
             print(f"  total_results : {semantic_response.total_results}")
@@ -181,7 +181,7 @@ class TestSimilar:
             hint="--path must cover the source file (use project root)",
         )
 
-    def test_captured_values(self, similar_result, capsys):
+    def _dump_captured_values(self, similar_result, capsys):
         with capsys.disabled():
             print(f"\n  source_file   : {Path(similar_result.source_file).name}")
             print(f"  source_chunks : {similar_result.source_chunks}")

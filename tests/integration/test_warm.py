@@ -134,7 +134,7 @@ class TestWarm:
             actual_type=type(content).__name__,
         )
 
-    def test_captured_values(self, warm_session, capsys):
+    def _dump_captured_values(self, warm_session, capsys):
         with capsys.disabled():
             print(f"\n  project_dir : {warm_session.project_dir}")
             print(f"  status      : {warm_session.warm_result.status}")

@@ -102,7 +102,7 @@ class TestTree:
             bad=[c.name for c in bad],
         )
 
-    def test_captured_values(self, tree_result, capsys):
+    def _dump_captured_values(self, tree_result, capsys):
         with capsys.disabled():
             print(f"\n  name     : {tree_result.name}")
             print(f"  type     : {tree_result.type}")
@@ -118,7 +118,7 @@ class TestStructure:
             root=structure_result.root,
         )
 
-    def test_captured_values(self, structure_result, capsys):
+    def _dump_captured_values(self, structure_result, capsys):
         with capsys.disabled():
             print(f"\n  root     : {structure_result.root}")
             print(f"  language : {structure_result.language}")
@@ -132,7 +132,19 @@ class TestStructure:
 class TestExtract:
     """tldr extract — Pydantic validates functions/classes/constants/imports shapes."""
 
-    def test_captured_values(self, extract_result, capsys):
+    def test_imports_non_empty(self, extract_result):
+        assert extract_result.imports, msg(
+            "extract returned no imports — target file has import statements",
+            file=extract_result.file_path,
+        )
+
+    def test_functions_non_empty(self, extract_result):
+        assert extract_result.functions, msg(
+            "extract returned no functions — target file defines functions",
+            file=extract_result.file_path,
+        )
+
+    def _dump_captured_values(self, extract_result, capsys):
         with capsys.disabled():
             print(f"\n  file_path : {extract_result.file_path}")
             print(f"  language  : {extract_result.language}")
@@ -151,7 +163,7 @@ class TestImports:
             file=imports_result.file,
         )
 
-    def test_captured_values(self, imports_result, capsys):
+    def _dump_captured_values(self, imports_result, capsys):
         with capsys.disabled():
             print(f"\n  file     : {imports_result.file}")
             print(f"  language : {imports_result.language}")
@@ -168,7 +180,7 @@ class TestImporters:
             path=INTEGRATION_DIR,
         )
 
-    def test_captured_values(self, importers_result, capsys):
+    def _dump_captured_values(self, importers_result, capsys):
         with capsys.disabled():
             print(f"\n  module : {importers_result.module}")
             print(f"  total  : {importers_result.total}")

@@ -129,7 +129,7 @@ class TestEmbedFresh:
             latency_ms=embed_fresh.latency_ms,
         )
 
-    def test_captured_values(self, embed_fresh, capsys):
+    def _dump_captured_values(self, embed_fresh, capsys):
         """Print all captured values — visible with pytest -s."""
         with capsys.disabled():
             print(f"\n  path            : {embed_fresh.path}")
