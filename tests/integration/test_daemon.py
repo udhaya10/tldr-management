@@ -1,9 +1,8 @@
 """
-Daemon startup integration test.
+Daemon integration tests.
 
-Starts the tldr daemon, inspects what it creates in $TMPDIR, parses the
-filename to extract the session hash, and records all captured values as a
-DaemonInfo dataclass so downstream tests can use them.
+Starts the tldr daemon, inspects $TMPDIR files, validates status response,
+and records all captured values as typed dataclasses for downstream test use.
 
 Daemon files created in $TMPDIR:
   tldr-<8hex>.sock   Unix socket
@@ -11,6 +10,10 @@ Daemon files created in $TMPDIR:
 
 Start response (JSON):
   { "status": "ok", "pid": <int>, "socket": "<path>", "message": "..." }
+
+Status response (JSON):
+  { "status": "running", "uptime": <float>, "uptime_human": <str>,
+    "files": <int>, "project": <str>, "salsa_stats": { ... } }
 """
 
 import dataclasses
@@ -46,6 +49,43 @@ def parse_daemon_filename(name: str) -> DaemonFilename | None:
     if not match:
         return None
     return DaemonFilename(hash=match.group("hash"), ext=match.group("ext"))
+
+
+@dataclasses.dataclass(frozen=True)
+class SalsaStats:
+    hits:          int
+    misses:        int
+    invalidations: int
+    recomputations: int
+
+
+@dataclasses.dataclass(frozen=True)
+class DaemonStatus:
+    status:       str
+    uptime:       float
+    uptime_human: str
+    files:        int
+    project:      Path
+    salsa_stats:  SalsaStats
+
+
+def parse_daemon_status(raw: str) -> DaemonStatus:
+    """Parse `tldr daemon status --format json` output into a typed DaemonStatus."""
+    data = json.loads(raw)
+    ss   = data["salsa_stats"]
+    return DaemonStatus(
+        status=data["status"],
+        uptime=data["uptime"],
+        uptime_human=data["uptime_human"],
+        files=data["files"],
+        project=Path(data["project"]),
+        salsa_stats=SalsaStats(
+            hits=ss["hits"],
+            misses=ss["misses"],
+            invalidations=ss["invalidations"],
+            recomputations=ss["recomputations"],
+        ),
+    )
 
 
 # ── data model ────────────────────────────────────────────────────────────
@@ -167,3 +207,45 @@ class TestDaemonStartup:
             print(f"  sock_file     : {daemon_info.sock_file}")
             print(f"  pid_file      : {daemon_info.pid_file}")
             print(f"  pid_from_file : {daemon_info.pid_from_file}")
+
+
+class TestDaemonStatus:
+    """Validates `tldr daemon status` while the daemon is running."""
+
+    def test_status_is_running(self, daemon_info):
+        raw    = _tldr("daemon", "status", "--format", "json")
+        status = parse_daemon_status(str(raw))
+        assert status.status == "running", msg(
+            "Daemon status is not 'running' after a successful start",
+            status=status.status,
+            uptime=status.uptime,
+        )
+
+    def test_uptime_is_positive(self, daemon_info):
+        raw    = _tldr("daemon", "status", "--format", "json")
+        status = parse_daemon_status(str(raw))
+        assert status.uptime > 0, msg(
+            "Daemon uptime is not positive",
+            uptime=status.uptime,
+            uptime_human=status.uptime_human,
+        )
+
+    def test_project_path_is_valid(self, daemon_info):
+        raw    = _tldr("daemon", "status", "--format", "json")
+        status = parse_daemon_status(str(raw))
+        assert status.project.exists(), msg(
+            "Daemon project path does not exist",
+            project=status.project,
+        )
+
+    def test_captured_status_values(self, daemon_info, capsys):
+        """Print all status values — visible with pytest -s."""
+        raw    = _tldr("daemon", "status", "--format", "json")
+        status = parse_daemon_status(str(raw))
+        with capsys.disabled():
+            print(f"\n  status       : {status.status}")
+            print(f"  uptime       : {status.uptime:.3f}s ({status.uptime_human})")
+            print(f"  files        : {status.files}")
+            print(f"  project      : {status.project}")
+            print(f"  salsa hits   : {status.salsa_stats.hits}")
+            print(f"  salsa misses : {status.salsa_stats.misses}")
