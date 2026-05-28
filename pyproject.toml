@@ -35,7 +35,7 @@ markers = [
     "integration: requires tldr binary or daemon; skipped when environment is incomplete",
     "e2e: full service lifecycle; requires all environment dependencies",
 ]
-addopts = "--strict-markers -q"
+addopts = "--strict-markers -q -m 'not integration and not e2e'"
 
 [dependency-groups]
 dev = [
