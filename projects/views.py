@@ -1,11 +1,14 @@
+import json
 import subprocess
 from pathlib import Path
 
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from .models import ProjectPath
+
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 
 
 def project_list(request):
@@ -61,3 +64,40 @@ def check_project(request, pk):
     tldr_ok = (p / ".tldr").is_dir() or (p / ".tldrignore").is_file()
 
     return JsonResponse({"git": git_ok, "tldr": tldr_ok})
+
+
+def runner_page(request):
+    scripts = sorted(SCRIPTS_DIR.glob("*.sh"), key=lambda s: s.name)
+    projects = ProjectPath.objects.all()
+    return render(request, "projects/runner.html", {
+        "scripts": scripts,
+        "projects": projects,
+    })
+
+
+def run_script(request):
+    script_name = request.GET.get("script", "")
+    project_pk = request.GET.get("project", "")
+
+    script_path = (SCRIPTS_DIR / script_name).resolve()
+    if not str(script_path).startswith(str(SCRIPTS_DIR)) or not script_path.is_file():
+        return StreamingHttpResponse("data: invalid script\n\n", content_type="text/event-stream")
+
+    project = get_object_or_404(ProjectPath, pk=project_pk)
+
+    def stream():
+        process = subprocess.Popen(
+            ["bash", str(script_path), project.path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        for line in process.stdout:
+            yield f"data: {json.dumps(line)}\n\n"
+        process.wait()
+        yield f"data: {json.dumps({'__exit__': process.returncode})}\n\n"
+
+    response = StreamingHttpResponse(stream(), content_type="text/event-stream")
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response

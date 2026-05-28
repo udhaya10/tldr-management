@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Script Runner</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #111; padding: 2rem; }
+
+    .topbar { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+    .topbar a { font-size: 0.85rem; color: #6b7280; text-decoration: none; }
+    .topbar a:hover { color: #111; }
+    h1 { font-size: 1.4rem; }
+
+    .controls {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+      margin-bottom: 1.5rem;
+    }
+    .field { display: flex; flex-direction: column; gap: 0.35rem; flex: 1; min-width: 200px; }
+    label { font-size: 0.78rem; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.04em; }
+    select {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      background: #fff;
+      color: #111;
+      cursor: pointer;
+    }
+    select:focus { outline: 2px solid #2563eb; outline-offset: 1px; }
+
+    .btn-run {
+      padding: 0.55rem 1.4rem;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-run:hover { background: #1d4ed8; }
+    .btn-run:disabled { background: #93c5fd; cursor: default; }
+
+    .terminal-wrap {
+      background: #1e1e2e;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .terminal-bar {
+      background: #2a2a3d;
+      padding: 0.6rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-red   { background: #ff5f57; }
+    .dot-yellow{ background: #febc2e; }
+    .dot-green { background: #28c840; }
+    .terminal-label { font-size: 0.75rem; color: #6b7280; margin-left: auto; font-family: monospace; }
+
+    #output {
+      padding: 1.25rem;
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      color: #cdd6f4;
+      white-space: pre-wrap;
+      word-break: break-all;
+      min-height: 300px;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+    .line-exit-ok  { color: #a6e3a1; font-weight: 600; }
+    .line-exit-err { color: #f38ba8; font-weight: 600; }
+    .cursor { display: inline-block; width: 8px; height: 1em; background: #cdd6f4; vertical-align: text-bottom; animation: blink 1s step-end infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="{% url 'projects:list' %}">← Projects</a>
+  <h1>Script Runner</h1>
+</div>
+
+<div class="controls">
+  <div class="field">
+    <label for="script-select">Script</label>
+    <select id="script-select">
+      {% for s in scripts %}
+      <option value="{{ s.name }}">{{ s.stem }}</option>
+      {% empty %}
+      <option disabled>No scripts found in scripts/</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="project-select">Project</label>
+    <select id="project-select">
+      {% for p in projects %}
+      <option value="{{ p.pk }}">{{ p.name }} — {{ p.path }}</option>
+      {% empty %}
+      <option disabled>No projects added yet</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <button class="btn-run" id="run-btn" onclick="runScript()">&#9654; Run</button>
+</div>
+
+<div class="terminal-wrap">
+  <div class="terminal-bar">
+    <span class="dot dot-red"></span>
+    <span class="dot dot-yellow"></span>
+    <span class="dot dot-green"></span>
+    <span class="terminal-label" id="terminal-label">ready</span>
+  </div>
+  <div id="output"><span class="cursor"></span></div>
+</div>
+
+<script>
+  let activeSource = null;
+
+  function runScript() {
+    const script  = document.getElementById('script-select').value;
+    const project = document.getElementById('project-select').value;
+    const output  = document.getElementById('output');
+    const btn     = document.getElementById('run-btn');
+    const label   = document.getElementById('terminal-label');
+
+    if (!script || !project) return;
+
+    if (activeSource) { activeSource.close(); activeSource = null; }
+
+    output.textContent = '';
+    btn.disabled = true;
+    label.textContent = 'running…';
+
+    const url = `/projects/run/?script=${encodeURIComponent(script)}&project=${encodeURIComponent(project)}`;
+    const es = new EventSource(url);
+    activeSource = es;
+
+    es.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+
+      if (data !== null && typeof data === 'object' && '__exit__' in data) {
+        es.close();
+        activeSource = null;
+        btn.disabled = false;
+        const code = data.__exit__;
+        const line = document.createElement('span');
+        line.className = code === 0 ? 'line-exit-ok' : 'line-exit-err';
+        line.textContent = code === 0
+          ? `\n✓ Exited with code 0`
+          : `\n✗ Exited with code ${code}`;
+        output.appendChild(line);
+        label.textContent = code === 0 ? 'done ✓' : `failed (exit ${code})`;
+        output.scrollTop = output.scrollHeight;
+        return;
+      }
+
+      output.appendChild(document.createTextNode(data));
+      output.scrollTop = output.scrollHeight;
+    };
+
+    es.onerror = () => {
+      es.close();
+      activeSource = null;
+      btn.disabled = false;
+      label.textContent = 'connection error';
+    };
+  }
+</script>
+
+</body>
+</html>

@@ -10,4 +10,6 @@ urlpatterns = [
     path("add/", views.add_project, name="add"),
     path("<int:pk>/remove/", views.remove_project, name="remove"),
     path("<int:pk>/check/", views.check_project, name="check"),
+    path("runner/", views.runner_page, name="runner"),
+    path("run/", views.run_script, name="run"),
 ]

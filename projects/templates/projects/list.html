@@ -125,7 +125,10 @@
 </head>
 <body>
 
-<h1>Project Paths</h1>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
+  <h1 style="margin:0;">Project Paths</h1>
+  <a href="{% url 'projects:runner' %}" style="font-size:0.85rem;color:#2563eb;text-decoration:none;font-weight:500;">&#9654; Script Runner</a>
+</div>
 
 {% if projects %}
 <ul class="project-list">
